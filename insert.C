@@ -15,37 +15,29 @@ const Status QU_Insert(const string & relation,
     const attrInfo attrList[])
 {
  
-    Status status;
+    Status status = OK;
     AttrDesc *attributes;
     int actualAttrCnt;
     status = attrCat -> getRelInfo(relation, actualAttrCnt, attributes);
     if (status != OK) return status;
 
-    if (actualAttrCnt != attrCnt) return UNIXERR;
-
-    int recordLen = 0;
+    Record insertRec;
     for (int i = 0; i < attrCnt; i++){
-        recordLen += attributes[i].attrLen;
+        insertRec.length += attributes[i].attrLen;
     }
 
-    InsertFileScan *scanner = new InsertFileScan(relation, status);
-    if (status != OK) {
-        return status;
-    }
-
-    char *insertData = new (std::nothrow) char[recordLen];
-    if(!insertData){
-        return INSUFMEM;
-    }
+    char *insertData = new char[insertRec.length];
+    if(!insertData) return INSUFMEM;
+    
 
     for (int i = 0; i < attrCnt; i++){
         int insertOffset = 0;
         bool attrFound = false;
-
         for (int j = 0; j < attrCnt; j++){
             if(strcmp(attributes[i].attrName, attrList[j].attrName) == 0){
                 insertOffset = attributes[i].attrOffset;
                 switch (attrList[j].attrType){
+
                     case STRING:
                         memcpy((char *)insertData + insertOffset, (char *)attrList[j].attrValue, attributes[i].attrLen);
                         break;
@@ -69,15 +61,16 @@ const Status QU_Insert(const string & relation,
         }
     }
 
-    Record insertRec;
+   
     insertRec.data = (void *)insertData;
-    insertRec.length = recordLen;
 
     RID insertRID;
+    InsertFileScan *scanner = new InsertFileScan(relation, status);
+    if (status != OK) return status;
     status = scanner->insertRecord(insertRec, insertRID);
-
 
     delete[] insertData;
     free(attributes);
+
     return status;
 }

@@ -20,8 +20,6 @@ const Status QU_Delete(const string & relation,
 	HeapFileScan *scanner = new HeapFileScan(relation, status);
 	if(status != OK) return status;
 
-    if (status != OK) return status;
-
 	if(attrName == ""){
 		status = scanner->startScan(0, 0, type, NULL, op);
 	}
