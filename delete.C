@@ -20,37 +20,35 @@ const Status QU_Delete(const string & relation,
 	HeapFileScan *scanner = new HeapFileScan(relation, status);
 	if(status != OK) return status;
 
-	if(attrName == ""){
-		status = scanner->startScan(0, 0, type, NULL, op);
-	}
-	else{
-		AttrDesc attrDesc;
-		status = attrCat->getInfo(relation, attrName, attrDesc);
-		if(type == STRING){
+	AttrDesc attrDesc;
+	attrCat->getInfo(relation, attrName, attrDesc);
+	int intval;
+	float floatval;
+	
+	switch(type)
+	{
+		case STRING:
 			status = scanner->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, attrValue, op);
-		}
-		else if(type == INTEGER){
-			int intVal = atoi(attrValue);
-			status = scanner->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, (char *)&intVal, op);
-		}
-		else if(type == FLOAT){
-			float floatVal = atof(attrValue);
-			status = scanner->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, (char *)&floatVal, op);
-		}
+			break;
+		
+		case INTEGER:
+		 	intval = atoi(attrValue);
+			status = scanner->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, (char *)&intval, op);
+			break;
+		
+		case FLOAT:
+			floatval = atof(attrValue);
+			status = scanner->startScan(attrDesc.attrOffset, attrDesc.attrLen, type, (char *)&floatval, op);
+			break;
 	}
-
-	if (status != OK) return status;
 
 	RID rid;
-	while ((status= scanner->scanNext(rid)) != FILEEOF)
+	while ((status= scanner->scanNext(rid)) == OK)
 	{
-		status = scanner->deleteRecord();
-		if (status != OK) return status;
+		if ((status = scanner->deleteRecord()) != OK) return status;
 	}
-	scanner->endScan();
-	delete scanner;
 
+	scanner->endScan();
+	
 	return OK;
 }
-
-

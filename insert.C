@@ -6,71 +6,65 @@
  * Inserts a record into the specified relation.
  *
  * Returns:
- *  OK on success
- *  an error code otherwise
+ * 	OK on success
+ * 	an error code otherwise
  */
 
 const Status QU_Insert(const string & relation, 
-    const int attrCnt, 
-    const attrInfo attrList[])
+	const int attrCnt, 
+	const attrInfo attrList[])
 {
  
-    Status status = OK;
+    Status status;
     AttrDesc *attributes;
     int actualAttrCnt;
-    status = attrCat -> getRelInfo(relation, actualAttrCnt, attributes);
+    status = attrCat->getRelInfo(relation, actualAttrCnt, attributes);
     if (status != OK) return status;
 
-    Record insertRec;
+    if (actualAttrCnt != attrCnt) return UNIXERR;
+
+    int recordLen = 0;
     for (int i = 0; i < attrCnt; i++){
-        insertRec.length += attributes[i].attrLen;
+        recordLen += attributes[i].attrLen;
     }
 
-    char *insertData = new char[insertRec.length];
-    if(!insertData) return INSUFMEM;
-    
+    char *data = new char[recordLen];
 
     for (int i = 0; i < attrCnt; i++){
-        int insertOffset = 0;
-        bool attrFound = false;
+        int offset = 0;
+        bool found = false;
         for (int j = 0; j < attrCnt; j++){
             if(strcmp(attributes[i].attrName, attrList[j].attrName) == 0){
-                insertOffset = attributes[i].attrOffset;
-                switch (attrList[j].attrType){
-
-                    case STRING:
-                        memcpy((char *)insertData + insertOffset, (char *)attrList[j].attrValue, attributes[i].attrLen);
-                        break;
-
-                    case INTEGER:
-                        *(int *)(insertData + insertOffset) = atoi((char *)attrList[j].attrValue);
-                        break;
-
-                    case FLOAT:
-                        *(float *)(insertData + insertOffset) = atof((char *)attrList[j].attrValue);
-                        break;
-
+                offset = attributes[i].attrOffset;
+                if(attrList[j].attrType == STRING){
+                    memcpy((char *)data + offset, (char *)attrList[j].attrValue, attributes[i].attrLen);
                 }
-                attrFound = true;
+                else if(attrList[j].attrType == INTEGER){
+                    *(int *)(data + offset) = atoi((char *)attrList[j].attrValue);
+                }
+                else if(attrList[j].attrType == FLOAT){
+                    *(float *)(data + offset) = atof((char *)attrList[j].attrValue);
+                }
+                found = true;
                 break;
             }
         }
-        if (!attrFound){
-            delete[] insertData;
+        if (found == false){
+            delete[] data;
             return UNIXERR;
         }
     }
 
-   
-    insertRec.data = (void *)insertData;
+    Record insertRec;
+    insertRec.data = (void *)data;
+    insertRec.length = recordLen;
 
     RID insertRID;
     InsertFileScan *scanner = new InsertFileScan(relation, status);
     if (status != OK) return status;
     status = scanner->insertRecord(insertRec, insertRID);
 
-    delete[] insertData;
-    free(attributes);
+    delete[] data;
 
-    return status;
+    return OK;
 }

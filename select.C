@@ -1,39 +1,38 @@
 #include "catalog.h"
-#include "stdio.h"
-#include "stdlib.h"
 #include "query.h"
 
 // forward declaration
-const Status ScanSelect(const string &result,
-						const int projCnt,
-						const AttrDesc projNames[],
-						const AttrDesc *attrDesc,
-						const Operator op,
-						const char *filter,
-						const int reclen);
+const Status ScanSelect(const string & result, 
+			const int projCnt, 
+			const AttrDesc projNames[],
+			const AttrDesc *attrDesc, 
+			const Operator op, 
+			const char *filter,
+			const int reclen);
 
 /*
  * Selects records from the specified relation.
-
- * @param result - result of selection
- * @param projCnt -
+ *
  * Returns:
  * 	OK on success
  * 	an error code otherwise
  */
 
-const Status QU_Select(const string &result,
-                       const int projCnt,
-                       const attrInfo projNames[],
-                       const attrInfo *attr,
-                       const Operator op,
-                       const char *attrValue) {
+const Status QU_Select(const string & result, 
+		       const int projCnt, 
+		       const attrInfo projNames[],
+		       const attrInfo *attr, 
+		       const Operator op, 
+		       const char *attrValue)
+{
+    // Qu_Select sets up things and then calls ScanSelect to do the actual work
     cout << "Doing QU_Select " << endl;
 
     Status status;
-    AttrDesc *attr1 = NULL;    
+    AttrDesc attr1;
     AttrDesc attributes[projCnt];   
     int recordslen = 0;
+    const char* filter;
    
     for (int i = 0; i < projCnt; i++) {
         status = attrCat->getInfo(projNames[i].relName, projNames[i].attrName, attributes[i]);
@@ -42,59 +41,74 @@ const Status QU_Select(const string &result,
         }
         recordslen += attributes[i].attrLen; 
     }
+
     if (attr != NULL) {
-        attr1 = new AttrDesc;
-        status = attrCat->getInfo(attr->relName, attr->attrName, *attr1);
+        status = attrCat->getInfo(attr->relName, attr->attrName, attr1);
         if (status != OK) {
             delete attr;
             return status;
         }
+
+        int intval;
+        float floatval;
+
+        switch (attr->attrType) {
+            case INTEGER:
+                intval = atoi(attrValue);
+                filter = (char*)&intval;
+                break;
+            case FLOAT:
+                floatval = atof(attrValue);
+                filter = (char*)&floatval;
+                break;
+            case STRING:
+                filter = attrValue;
+                break;
+        }
+    }
+    else {
+        attr1.attrOffset = 0;
+        attr1.attrLen = 0;
+        attr1.attrType = STRING;
+        filter = NULL;
+        strcpy(attr1.relName, projNames[0].relName);
+        strcpy(attr1.attrName, projNames[0].attrName);
     }
 
-    return ScanSelect(result, projCnt, attributes, attr1, op, attrValue, recordslen);
+    return ScanSelect(result, projCnt, attributes, &attr1, op, filter, recordslen);
 }
-const Status ScanSelect(const string &result,
-                        const int projCnt,
-                        const AttrDesc projNames[],
-                        const AttrDesc *attrDesc,
-                        const Operator op,
-                        const char *filter,
-                        const int reclen) {
-    
+
+
+const Status ScanSelect(const string & result, 
+#include "stdio.h"
+#include "stdlib.h"
+			const int projCnt, 
+			const AttrDesc projNames[],
+			const AttrDesc *attrDesc, 
+			const Operator op, 
+			const char *filter,
+			const int reclen)
+{
     cout << "Doing HeapFileScan Selection using ScanSelect()" << endl;
+    
     Status status;
     Record newRecord;
     RID sourceRID, targetRID;
 
     InsertFileScan targetRelation(result, status);
     if (status != OK) return status;
+    
     newRecord.length = reclen;
     newRecord.data = new char[reclen];
 
     HeapFileScan scan(projNames[0].relName, status);
     if (status != OK) return status;
 
-   
-    if (!attrDesc) {
-        status = scan.startScan(0, 0, STRING, NULL, EQ);
-    } else {
-        int toInt;
-        float toFloat;
-        switch (attrDesc->attrType) {
-            case FLOAT:
-                toFloat = atof(filter);
-                status = scan.startScan(attrDesc->attrOffset, attrDesc->attrLen, FLOAT, (char *)&(toFloat), op);
-                break;
-            case INTEGER:
-                toInt = atoi(filter);
-                status = scan.startScan(attrDesc->attrOffset, attrDesc->attrLen, INTEGER, (char *)&(toInt), op);
-                break;
-            case STRING:
-                status = scan.startScan(attrDesc->attrOffset, attrDesc->attrLen, STRING, filter, op);
-                break;
-        }
+    status = scan.startScan(attrDesc->attrOffset, attrDesc->attrLen, (Datatype)attrDesc->attrType, filter, op);
+    if (status != OK) {
+        return status;
     }
-    if (status != OK) return status;
+
     Record rec;
     while (scan.scanNext(sourceRID) == OK) {
         status = scan.getRecord(rec);
